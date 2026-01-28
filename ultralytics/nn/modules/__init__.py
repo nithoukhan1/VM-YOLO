@@ -105,7 +105,7 @@ from .transformer import (
     TransformerEncoderLayer,
     TransformerLayer,
 )
-
+from .custom import DySample, VSSBlock
 __all__ = (
     "AIFI",
     "C1",
@@ -187,4 +187,6 @@ __all__ = (
     "YOLOESegment",
     "YOLOESegment26",
     "v10Detect",
+    "DySample",
+    "VSSBlock",
 )
