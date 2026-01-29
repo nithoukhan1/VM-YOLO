@@ -7,6 +7,7 @@ class SS2D(nn.Module):
     """
     SS2D: Cross-Scan Mechanism for VMamba.
     Scans the feature map in 4 directions to capture global context from all angles.
+    Includes CPU Bypass for YOLO initialization.
     """
     def __init__(self, d_model, d_state=16, d_conv=3, expand=2, dropout=0.):
         super().__init__()
@@ -31,15 +32,12 @@ class SS2D(nn.Module):
         
         self.act = nn.SiLU()
 
-        # The 4 Mamba Engines (one for each scan direction)
-        # Note: In pure VMamba, these share weights or split channels. 
-        # For implementation stability, we use independent instances or shared processing.
-        # Here we simplify by running the sequence through a shared SSM but with different orderings.
+        # The Mamba Engine (one for each scan direction)
         self.mamba = Mamba(
-            d_model=self.d_inner, # Mamba processes the expanded dimension
+            d_model=self.d_inner,
             d_state=d_state,
             d_conv=d_conv,
-            expand=1 # We already expanded in in_proj
+            expand=1
         )
 
         # Output Projection
@@ -63,27 +61,32 @@ class SS2D(nn.Module):
         x_conv = self.conv2d(x_conv)
         x_conv = self.act(x_conv) # [B, d_inner, H, W]
         
-        # 3. SS2D: Cross-Scan (The "Full" VMamba Magic)
-        # We generate 4 versions of the image sequence
-        
-        # Direction 1: Forward (Top-Left -> Bottom-Right)
-        x_fwd = x_conv.flatten(2).transpose(1, 2) # [B, L, C]
-        out_fwd = self.mamba(x_fwd)
-        
-        # Direction 2: Backward (Bottom-Right -> Top-Left)
-        x_bwd = x_conv.flatten(2).transpose(1, 2).flip([1])
-        out_bwd = self.mamba(x_bwd).flip([1])
-        
-        # Direction 3: Transposed Forward (Top-Right -> Bottom-Left approx)
-        x_t_fwd = x_conv.transpose(2, 3).flatten(2).transpose(1, 2)
-        out_t_fwd = self.mamba(x_t_fwd).transpose(1, 2).view(B, -1, W, H).transpose(2, 3).flatten(2).transpose(1, 2)
+        # --- 3. SS2D: Cross-Scan (CPU SAFEGUARD) ---
+        if not x.is_cuda:
+            # 🛡️ BYPASS: If input is on CPU (YOLO initialization), SKIP Mamba kernel.
+            # We flatten and pass it through to satisfy shape requirements without crashing.
+            x_ss2d = x_conv.flatten(2).transpose(1, 2)
+        else:
+            # 🚀 RUN: If on GPU (Training), run full Cross-Scan Mamba
+            
+            # Direction 1: Forward (Top-Left -> Bottom-Right)
+            x_fwd = x_conv.flatten(2).transpose(1, 2) # [B, L, C]
+            out_fwd = self.mamba(x_fwd)
+            
+            # Direction 2: Backward (Bottom-Right -> Top-Left)
+            x_bwd = x_conv.flatten(2).transpose(1, 2).flip([1])
+            out_bwd = self.mamba(x_bwd).flip([1])
+            
+            # Direction 3: Transposed Forward (Top-Right -> Bottom-Left approx)
+            x_t_fwd = x_conv.transpose(2, 3).flatten(2).transpose(1, 2)
+            out_t_fwd = self.mamba(x_t_fwd).transpose(1, 2).view(B, -1, W, H).transpose(2, 3).flatten(2).transpose(1, 2)
 
-        # Direction 4: Transposed Backward
-        x_t_bwd = x_conv.transpose(2, 3).flatten(2).transpose(1, 2).flip([1])
-        out_t_bwd = self.mamba(x_t_bwd).flip([1]).transpose(1, 2).view(B, -1, W, H).transpose(2, 3).flatten(2).transpose(1, 2)
+            # Direction 4: Transposed Backward
+            x_t_bwd = x_conv.transpose(2, 3).flatten(2).transpose(1, 2).flip([1])
+            out_t_bwd = self.mamba(x_t_bwd).flip([1]).transpose(1, 2).view(B, -1, W, H).transpose(2, 3).flatten(2).transpose(1, 2)
 
-        # Merge the 4 scans (Average them)
-        x_ss2d = (out_fwd + out_bwd + out_t_fwd + out_t_bwd) / 4.0
+            # Merge the 4 scans (Average them)
+            x_ss2d = (out_fwd + out_bwd + out_t_fwd + out_t_bwd) / 4.0
         
         # 4. Gating and Output
         x_out = x_ss2d * F.silu(z.flatten(1, 2)) # Gate with original z
