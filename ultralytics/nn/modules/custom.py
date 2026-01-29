@@ -64,6 +64,7 @@ class SS2D(nn.Module):
             # 🛡️ BYPASS: If input is on CPU (during init), SKIP Mamba kernel.
             # We flatten and pass it through to satisfy shape requirements.
             x_ss2d = x_conv.flatten(2).transpose(1, 2)
+            print ("SS2D Mamba bypassed on CPU input.")
         else:
             # 🚀 RUN: If on GPU (Training), run full Cross-Scan Mamba
             
