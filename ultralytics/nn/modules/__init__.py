@@ -76,6 +76,7 @@ from .conv import (
     RepConv,
     SpatialAttention,
 )
+from .custom import DySample, VSSBlock
 from .head import (
     OBB,
     OBB26,
@@ -105,7 +106,7 @@ from .transformer import (
     TransformerEncoderLayer,
     TransformerLayer,
 )
-from .custom import DySample, VSSBlock
+
 __all__ = (
     "AIFI",
     "C1",
@@ -152,6 +153,7 @@ __all__ = (
     "DeformableTransformerDecoder",
     "DeformableTransformerDecoderLayer",
     "Detect",
+    "DySample",
     "Focus",
     "GhostBottleneck",
     "GhostConv",
@@ -182,11 +184,10 @@ __all__ = (
     "TransformerBlock",
     "TransformerEncoderLayer",
     "TransformerLayer",
+    "VSSBlock",
     "WorldDetect",
     "YOLOEDetect",
     "YOLOESegment",
     "YOLOESegment26",
     "v10Detect",
-    "DySample",
-    "VSSBlock",
 )
