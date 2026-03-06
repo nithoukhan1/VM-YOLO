@@ -47,6 +47,7 @@ from ultralytics.nn.modules import (
     Detect,
     DWConv,
     DWConvTranspose2d,
+    DySample,
     Focus,
     GhostBottleneck,
     GhostConv,
@@ -67,13 +68,12 @@ from ultralytics.nn.modules import (
     Segment,
     Segment26,
     TorchVision,
+    VSSBlock,
     WorldDetect,
     YOLOEDetect,
     YOLOESegment,
     YOLOESegment26,
     v10Detect,
-    DySample,
-    VSSBlock,
 )
 from ultralytics.utils import DEFAULT_CFG_DICT, LOGGER, YAML, colorstr, emojis
 from ultralytics.utils.checks import check_requirements, check_suffix, check_yaml
@@ -1661,12 +1661,12 @@ def parse_model(d, ch, verbose=True):
                 legacy = False
         elif m is AIFI:
             args = [ch[f], *args]
-            
+
         # --- ADD THIS BLOCK ---
         elif m is DySample:
             args = [ch[f], *args]  # Injects input channels (c1)
         # ----------------------
-            
+
         elif m in frozenset({HGStem, HGBlock}):
             c1, cm, c2 = ch[f], args[0], args[1]
             args = [c1, cm, c2, *args[2:]]
